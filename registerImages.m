@@ -39,7 +39,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
             [yC(:, iC), xC(:, iC), hC(iC), ~] = ...
                 register(names(:, iC, iE), cropTemplate);
             if options.displayProgress
-                fprintf(" %d", idx.r(iC));
+                fprintf(" %d", idx.c(iC));
             end
         end
         
@@ -128,16 +128,17 @@ function [names, idx] = parseFilenames(filepath, inputFmt, ext)
                    ["(?<e>\d*)", "(?<r>\d*)", "(?<c>\d*)"]);
     [names, tokens] = regexp(testNames, expression, 'match', 'names');
     names = [names{:}]; names = names(:);
-    tokens = struct2table([tokens{:}]);
+
+    % sort all the tokens
+    tokens = convertvars(struct2table([tokens{:}]), @isstring, "double");
+    [tokens, sorted] = sortrows(tokens, [1, 3]);
         
-    % initialize variables
-    e = str2double(unique(tokens.e));
-    r = str2double(unique(tokens.r));
-    c = str2double(unique(tokens.c));
-    nE = size(e, 1); nR = size(r, 1); nC = size(c, 1);
-    idx.e = e; idx.r = r; idx.c = c;
+    % get all the unique values of e, r, c.
+    idx.e = unique(tokens.e);
+    idx.r = unique(tokens.r);
+    idx.c = unique(tokens.c);
 
     % reshape the array of file names to be 3D
-    [~, sort] = sortrows(tokens, [1, 3]);
-    names = reshape(names(sort), [nR, nC, nE]);
+    nE = size(idx.e, 1); nR = size(idx.r, 1); nC = size(idx.c, 1);
+    names = reshape(names(sorted), [nR, nC, nE]);
 end
