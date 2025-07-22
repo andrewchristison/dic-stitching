@@ -131,8 +131,8 @@ function stitchDic(filepath, inputFmt, ext, options)
         stitch.x = X; stitch.y = Y;
 
         % save outputs for this strain level
-        %file = fullfile(filepath, options.outputFmt(iE) + ext);
-        %save(stitch, file);
+        file = fullfile(filepath, options.outputFmt(iE) + ext);
+        save(file, "-struct", "stitch");
     end
 end
 
