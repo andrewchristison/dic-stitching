@@ -18,6 +18,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
         options.saveOutput logical = true;
         options.displayProgress logical = true;
         options.cropTemplate double = 1024;
+        options.searchRadius double = 16;
     end
 
     [names, idx] = parseFilenames(filepath, inputFmt, ext);
@@ -25,7 +26,8 @@ function reg = registerImages(filepath, inputFmt, ext, options)
     xGlobal = nan(nR, nC, nE);  yGlobal = nan(nR, nC, nE);
     h = zeros(1, nE);           w = zeros(1, nE);
 
-    cropTemplate = options.cropTemplate;
+    ct = options.cropTemplate;
+    sr = options.searchRadius;
 
     %% MAIN
     for iE = 1:nE
@@ -37,7 +39,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
         yC = nan(nR, nC); xC = nan(nR, nC); hC = zeros(1, nC);
         for iC = 1:nC
             [yC(:, iC), xC(:, iC), hC(iC), ~] = ...
-                register(names(:, iC, iE), cropTemplate);
+                register(names(:, iC, iE), ct, sr);
             if options.displayProgress
                 fprintf(" %d", idx.c(iC));
             end
@@ -50,7 +52,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
         yR = nan(nR, nC); xR = nan(nR, nC); wR = zeros(nR, 1);
         for iR = 1:nR
             [yR(iR, :), xR(iR, :), ~, wR(iR)] = ...
-                register(names(iR, :, iE), cropTemplate);
+                register(names(iR, :, iE), ct, sr);
             if options.displayProgress
                 fprintf(" %d", idx.r(iR));
             end
@@ -78,7 +80,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
 end
 
 % implements registration for a row or column of images
-function [yPos, xPos, h, w] = register(names, cropTemplate)
+function [yPos, xPos, h, w] = register(names, cropTemplate, searchRadius)
 
     % initialize loop variables
     i = 1;
@@ -94,12 +96,20 @@ function [yPos, xPos, h, w] = register(names, cropTemplate)
         image = template;
         template = imread(names(i+1));
         
-        % local registration for a pair of images
+        % local pixel-accurate registration for a pair of images
         ct = imcrop(template, [1, 1, cropTemplate, cropTemplate]);
         cc = normxcorr2(ct, image);
         [yPeak,xPeak] = find(cc==max(cc(:)));
-        yPeak = yPeak - size(ct, 1);
-        xPeak = xPeak - size(ct, 2);
+
+        % search for the subpixel registration with interpolation
+        sr = -searchRadius:searchRadius;
+        ccSpline = csape({sr, sr}, cc(sr + yPeak, sr + xPeak));
+        sp = fminunc(@(x)-fnval(ccSpline, [x(1); x(2)]), [0,0], ...
+                     optimoptions('fminunc', 'Display', 'none'));
+
+        % local registration
+        yPeak = yPeak - size(ct, 1) + sp(1);
+        xPeak = xPeak - size(ct, 2) + sp(2);
 
         % global registration
         yLocal(i+1) = yPeak; yPos(i+1) = yPeak + yPos(i);
