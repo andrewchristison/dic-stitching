@@ -1,5 +1,5 @@
 function reg = registerImages(filepath, inputFmt, ext, options)
-% REGISTER IMAGES: registers a series of DIC images with cross correlation
+% REGISTERIMAGES: registers a series of DIC images with cross correlation
 %
 % reg = registerImages(filepath, inputFmt, ext) will automatically find all
 % files with the specified format in the filepath.
@@ -17,7 +17,8 @@ function reg = registerImages(filepath, inputFmt, ext, options)
         ext string = ".tif";
         options.saveOutput logical = true;
         options.displayProgress logical = true;
-        options.cropTemplate double = 1024;
+        options.cropTemplate double = 0.20;
+        options.searchRadius double = 16;
     end
 
     [names, idx] = parseFilenames(filepath, inputFmt, ext);
@@ -25,7 +26,8 @@ function reg = registerImages(filepath, inputFmt, ext, options)
     xGlobal = nan(nR, nC, nE);  yGlobal = nan(nR, nC, nE);
     h = zeros(1, nE);           w = zeros(1, nE);
 
-    cropTemplate = options.cropTemplate;
+    ct = options.cropTemplate;
+    sr = options.searchRadius;
 
     %% MAIN
     for iE = 1:nE
@@ -37,7 +39,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
         yC = nan(nR, nC); xC = nan(nR, nC); hC = zeros(1, nC);
         for iC = 1:nC
             [yC(:, iC), xC(:, iC), hC(iC), ~] = ...
-                register(names(:, iC, iE), cropTemplate);
+                register(names(:, iC, iE), [1, ct], sr);
             if options.displayProgress
                 fprintf(" %d", idx.c(iC));
             end
@@ -50,7 +52,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
         yR = nan(nR, nC); xR = nan(nR, nC); wR = zeros(nR, 1);
         for iR = 1:nR
             [yR(iR, :), xR(iR, :), ~, wR(iR)] = ...
-                register(names(iR, :, iE), cropTemplate);
+                register(names(iR, :, iE), [ct, 1], sr);
             if options.displayProgress
                 fprintf(" %d", idx.r(iR));
             end
@@ -61,8 +63,8 @@ function reg = registerImages(filepath, inputFmt, ext, options)
 
         yGlobal(:, :, iE) = mean(cat(3, yR + yC(:, 1), yC + yR(1, :)), 3);
         xGlobal(:, :, iE) = mean(cat(3, xR + xC(:, 1), xC + xR(1, :)), 3);
-        h(iE) = ceil(max(yGlobal(end, :, iE) + hC) + 1);
-        w(iE) = ceil(max(xGlobal(:, end, iE) + wR) + 1);
+        h(iE) = ceil(max(yGlobal(end, :, iE) + hC));
+        w(iE) = ceil(max(xGlobal(:, end, iE) + wR));
     end
 
     if options.displayProgress
@@ -78,7 +80,7 @@ function reg = registerImages(filepath, inputFmt, ext, options)
 end
 
 % implements registration for a row or column of images
-function [yPos, xPos, h, w] = register(names, cropTemplate)
+function [yPos, xPos, h, w] = register(names, cropTemplate, searchRadius)
 
     % initialize loop variables
     i = 1;
@@ -93,22 +95,31 @@ function [yPos, xPos, h, w] = register(names, cropTemplate)
     while(i < numFiles)
         image = template;
         template = imread(names(i+1));
+        st = size(template) .* cropTemplate;
         
-        % local registration for a pair of images
-        ct = imcrop(template, [1, 1, cropTemplate, cropTemplate]);
+        % local pixel-accurate registration for a pair of images
+        ct = imcrop(template, [0, 0, st(1), st(2)]);
         cc = normxcorr2(ct, image);
         [yPeak,xPeak] = find(cc==max(cc(:)));
-        yPeak = yPeak - size(ct, 1);
-        xPeak = xPeak - size(ct, 2);
 
-        % global registration
+        % search for the subpixel registration with interpolation
+        sr = -searchRadius:searchRadius;
+        ccSpline = csape({sr, sr}, cc(sr + yPeak, sr + xPeak));
+        sp = fminunc(@(x)-fnval(ccSpline, [x(1); x(2)]), [0,0], ...
+                     optimoptions('fminunc', 'Display', 'none'));
+
+        % registration in local coordinate system
+        yPeak = yPeak + sp(1) - size(ct, 1);
+        xPeak = xPeak + sp(2) - size(ct, 2);
+
+        % registration in global coordinate system
         yLocal(i+1) = yPeak; yPos(i+1) = yPeak + yPos(i);
         xLocal(i+1) = xPeak; xPos(i+1) = xPeak + xPos(i);
 
         i = i + 1;
     end
 
-    % move coordinates to have a (0, 0) origin
+    % move origin to (0, 0)
     y0 = min(yPos); yPos = yPos - y0;
     x0 = min(xPos); xPos = xPos - x0;
     h = size(image, 1); w = size(image, 2);

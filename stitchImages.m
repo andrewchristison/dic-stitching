@@ -52,9 +52,9 @@ function stitchImages(filepath, inputFmt, ext, options)
 
             name = fullfile(filepath, inputFmt(e, r, c) + ext);
             image = rescale(imread(name), 0, 1);
-            [rS] = [1, size(image, 1)] + yReg(iR, iC, iE);
-            [cS] = [1, size(image, 2)] + xReg(iR, iC, iE);
-            [rS, cS] = worldToSubscript(imref, cS, rS);
+            [yW] = [1, size(image, 1)] + yReg(iR, iC, iE);
+            [xW] = [1, size(image, 2)] + xReg(iR, iC, iE);
+            [rS, cS] = worldToSubscript(imref, xW, yW);
 
             if options.averageOverlappingRegions
                 oCount(rS(1):rS(2), cS(1):cS(2)) = ...
@@ -76,11 +76,11 @@ function stitchImages(filepath, inputFmt, ext, options)
         sF = options.scaleFactor(:);
         for s = 1:size(sF, 1)
             if sF(s) == 1
-                fname = options.outputFmt(iE);
+                fname = options.outputFmt(e);
                 file = fullfile(filepath, fname + ext);
                 imwrite(stitch, file);
             else
-                fname = options.outputFmt(iE + "_rescale" + string(s));
+                fname = options.outputFmt(e + "_rescale" + string(s));
                 scale = imresize(stitch, 1/sF(s), method = "lanczos2");
                 file = fullfile(filepath, fname + ext);
                 imwrite(scale, file);

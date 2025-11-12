@@ -1,7 +1,7 @@
 function stitchDic(filepath, inputFmt, ext, options)
 % STITCHDIC: Stitch a series of registered, correlated DIC fields.
 %
-% STITCHDIC(filepath, inputFmt, ext, options) will create a stitched output
+% stitchDic(filepath, inputFmt, ext, options) will create a stitched output
 % array from the registered .mat images in folder filepath. Custom input
 % formats may be used by changing the anonymous function inputFmt.
 %
@@ -31,7 +31,7 @@ function stitchDic(filepath, inputFmt, ext, options)
         options.outputFmt =  @(e) "e"+string(e)+"_stitched";
         options.displacementFields = {"u", "v"};
         options.deformationFields = {"exx", "eyy", "exy"};
-        options.smoothFields = {"u", "v", "exx"};
+        options.smoothFields = {"u", "v"};
         options.defineReferenceConfig double = 0;
         options.outputDeformedConfig logical = false;
         options.filterConfidence logical = false;
@@ -95,9 +95,9 @@ function stitchDic(filepath, inputFmt, ext, options)
                 corrLocal.x = corrLocal.x + xReg_0(iR, iC);
                 corrLocal.y = corrLocal.y + yReg_0(iR, iC);
 
-                % filter for the best correlating subsets
+                % build local and global masks for the usable subsets
                 [maskL, maskG] = ...
-                    filterSubsets(corrLocal, corrGlobal, imref, options);
+                    buildMasks(corrLocal, corrGlobal, imref, options);
                 corrGlobal(maskG) = corrLocal.(options.corrFlag)(maskL);
 
                 % stitch all the fields
@@ -136,7 +136,7 @@ function stitchDic(filepath, inputFmt, ext, options)
     end
 end
 
-function [maskL, maskG] = filterSubsets(corrLocal, corrGlobal, imref, options)
+function [maskL, maskG] = buildMasks(corrLocal, corrGlobal, imref, options)
     flag = options.corrFlag;
     fail = options.corrFail;
 
