@@ -1,5 +1,5 @@
 function reg = registerImages(filepath, inputFmt, ext, options)
-% REGISTER IMAGES: registers a series of DIC images with cross correlation
+% REGISTERIMAGES: registers a series of DIC images with cross correlation
 %
 % reg = registerImages(filepath, inputFmt, ext) will automatically find all
 % files with the specified format in the filepath.
